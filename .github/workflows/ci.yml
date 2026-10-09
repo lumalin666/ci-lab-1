@@ -1,20 +1,61 @@
-# =========================================================
-# САМОСТОЯТЕЛЬНАЯ РАБОТА
-# =========================================================
-#
-# Разработайте CI-пайплайн согласно разделу 5.4.1.
-#
-# Необходимо самостоятельно настроить:
-# 1. запуск при push в main;
-# 2. запуск при Pull Request в main;
-# 3. Ubuntu;
-# 4. checkout исходного кода;
-# 5. установку Python с кэшированием;
-# 6. установку зависимостей;
-# 7. lint;
-# 8. тесты с покрытием / Quality Gate;
-# 9. build;
-# 10. при желании — сохранение отчёта покрытия.
-#
-# Готовый workflow здесь намеренно не приводится.
-# =========================================================
+name: CI
+
+# Требование 1: запуск при push в main и при Pull Request в main.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  ci:
+    # Требование 2: среда выполнения — Ubuntu.
+    runs-on: ubuntu-latest
+
+    steps:
+      # Требование 3: получение кода репозитория.
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # Требование 4: установка Python с кэшированием зависимостей.
+      # cache: pip включает кэш, а ключ строится по файлу из
+      # cache-dependency-path (requirements.txt).
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: requirements.txt
+
+      # Требование 5: установка зависимостей строго по lock-файлу.
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # Требование 6: линтинг.
+      - name: Lint (flake8)
+        run: python -m flake8 app tests
+
+      # Требование 7: тесты с покрытием.
+      # Порог 80% задан в setup.cfg (--cov-fail-under=80), поэтому
+      # этот же шаг работает как Quality Gate: при покрытии ниже
+      # порога pytest завершается с ненулевым кодом и job падает.
+      - name: Tests with coverage (Quality Gate 80%)
+        run: python -m pytest
+
+      # Требование 8: сборка. По умолчанию GitHub Actions пропускает
+      # все последующие шаги, если предыдущий шаг упал, поэтому build
+      # выполняется только при успехе всех проверок.
+      - name: Build (syntax check)
+        run: python -m py_compile app/*.py
+
+      # Требование 9 (необязательно): отчёт о покрытии как артефакт.
+      # if: always() — шаг выполняется даже при падении предыдущих.
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: ignore
