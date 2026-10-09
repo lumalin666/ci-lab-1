@@ -5,6 +5,8 @@
 """
 from flask import Flask, jsonify, request
 
+from app import reports
+
 
 def create_app():
     """Фабрика приложения."""
@@ -35,5 +37,13 @@ def create_app():
         item = {"id": item_id, "name": name}
         app.config["ITEMS"][item_id] = item
         return jsonify(item), 201
+
+    # --- ЭКСПЕРИМЕНТ (раздел 5.7): новый маршрут, тестов к нему нет ---
+    @app.route("/reports", methods=["GET"])
+    def reports_route():
+        items = list(app.config["ITEMS"].values())
+        data = reports.summarize(items)
+        data["starting_with_k"] = len(reports.filter_by_prefix(items, "k"))
+        return jsonify(data), 200
 
     return app
