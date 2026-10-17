@@ -17,7 +17,7 @@ def create_app():
 
     @app.route("/")
     def index():
-        return jsonify(service="ci-lab-1", status="running"), 200
+        return jsonify(service="ci-lab-1", status="running", lab="lab2"), 200
 
     @app.route("/items", methods=["GET"])
     def list_items():

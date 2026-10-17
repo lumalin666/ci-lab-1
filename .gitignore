@@ -8,3 +8,5 @@ htmlcov/
 .DS_Store
 .idea/
 .vscode/
+trivy-report.txt
+sbom-cyclonedx.json
