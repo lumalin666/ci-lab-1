@@ -1,0 +1,16 @@
+venv
+.venv
+__pycache__
+*.pyc
+*.pyo
+.git
+.github
+tests
+.pytest_cache
+.coverage
+coverage.xml
+debug.log
+screenshots
+*.drawio
+*.png
+README.md

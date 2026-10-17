@@ -7,6 +7,15 @@ on:
   pull_request:
     branches: [ main ]
 
+# Требование ЛР2: токену GITHUB_TOKEN нужно право публиковать пакеты в GHCR.
+permissions:
+  contents: read
+  packages: write
+
+env:
+  # Имя образа в GHCR (регистр имеет значение: должно быть в нижнем регистре).
+  IMAGE_NAME: ghcr.io/${{ github.repository }}
+
 jobs:
   ci:
     # Требование 2: среда выполнения — Ubuntu.
@@ -18,8 +27,6 @@ jobs:
         uses: actions/checkout@v4
 
       # Требование 4: установка Python с кэшированием зависимостей.
-      # cache: pip включает кэш, а ключ строится по файлу из
-      # cache-dependency-path (requirements.txt).
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
@@ -39,19 +46,15 @@ jobs:
 
       # Требование 7: тесты с покрытием.
       # Порог 80% задан в setup.cfg (--cov-fail-under=80), поэтому
-      # этот же шаг работает как Quality Gate: при покрытии ниже
-      # порога pytest завершается с ненулевым кодом и job падает.
+      # этот же шаг работает как Quality Gate.
       - name: Tests with coverage (Quality Gate 80%)
         run: python -m pytest
 
-      # Требование 8: сборка. По умолчанию GitHub Actions пропускает
-      # все последующие шаги, если предыдущий шаг упал, поэтому build
-      # выполняется только при успехе всех проверок.
+      # Требование 8: сборка (проверка синтаксиса).
       - name: Build (syntax check)
         run: python -m py_compile app/*.py
 
-      # Требование 9 (необязательно): отчёт о покрытии как артефакт.
-      # if: always() — шаг выполняется даже при падении предыдущих.
+      # Требование 9: отчёт о покрытии как артефакт.
       - name: Upload coverage report
         if: always()
         uses: actions/upload-artifact@v4
@@ -59,3 +62,101 @@ jobs:
           name: coverage-report
           path: coverage.xml
           if-no-files-found: ignore
+
+      # ---------- ЛР2: сборка Docker-образа ----------
+
+      # ЛР2, п.5.3: Buildx нужен для кэширования слоёв и расширенных опций сборки.
+      - name: Set up Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Короткий хэш коммита (первые 7 символов) — для тегирования образа.
+      - name: Determine short SHA
+        run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> "$GITHUB_ENV"
+
+      # ЛР2, п.5.3: сборка образа с кэшированием слоёв между запусками Pipeline.
+      # push: false, load: true — образ сначала только собирается и загружается
+      # в Docker Engine раннера; публикация будет позже, после проверки Trivy.
+      - name: Build image with layer caching
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          load: true
+          tags: ci-lab-1:${{ env.SHORT_SHA }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # ---------- ЛР2: сканирование Trivy ----------
+
+      # ЛР2, п.5.4.1: полный отчёт о найденных уязвимостях.
+      # if: always() — отчёт сохраняется даже при падении Pipeline.
+      - name: Trivy full report
+        if: always()
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ci-lab-1:${{ env.SHORT_SHA }}
+          format: table
+          output: trivy-report.txt
+          scanners: vuln
+
+      - name: Upload Trivy report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-report
+          path: trivy-report.txt
+          if-no-files-found: ignore
+
+      # ЛР2, п.5.4.2: строгая проверка (Quality Gate).
+      # Останавливаем Pipeline, если есть уязвимости HIGH/CRITICAL,
+      # для которых уже существует исправление (--ignore-unfixed).
+      - name: Trivy Quality Gate (HIGH, CRITICAL, fixed only)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ci-lab-1:${{ env.SHORT_SHA }}
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+          scanners: vuln
+
+      # ---------- ЛР2: SBOM ----------
+
+      # ЛР2, п.5.5: генерация SBOM в формате CycloneDX.
+      - name: Generate SBOM (CycloneDX)
+        uses: aquasecurity/trivy-action@0.36.0
+        with:
+          image-ref: ci-lab-1:${{ env.SHORT_SHA }}
+          format: cyclonedx
+          output: sbom-cyclonedx.json
+
+      - name: Upload SBOM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom-cyclonedx.json
+          if-no-files-found: ignore
+
+      # ---------- ЛР2: публикация в GHCR ----------
+
+      # ЛР2, п.5.6.2: авторизация в GitHub Container Registry.
+      # Публикуем только для push в main, не для Pull Request.
+      - name: Login to GHCR
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # ЛР2, п.5.6.3: схема тегирования — короткий SHA и номер сборки.
+      # latest намеренно не используется.
+      - name: Tag and push image
+        if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+        run: |
+          IMAGE_ID=$(echo "$IMAGE_NAME" | tr '[:upper:]' '[:lower:]')
+          docker tag ci-lab-1:${SHORT_SHA} "$IMAGE_ID:${SHORT_SHA}"
+          docker tag ci-lab-1:${SHORT_SHA} "$IMAGE_ID:${{ github.run_number }}"
+          docker push "$IMAGE_ID:${SHORT_SHA}"
+          docker push "$IMAGE_ID:${{ github.run_number }}"
