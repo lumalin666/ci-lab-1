@@ -92,7 +92,7 @@ jobs:
       # if: always() — отчёт сохраняется даже при падении Pipeline.
       - name: Trivy full report
         if: always()
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ci-lab-1:${{ env.SHORT_SHA }}
           format: table
@@ -111,7 +111,7 @@ jobs:
       # Останавливаем Pipeline, если есть уязвимости HIGH/CRITICAL,
       # для которых уже существует исправление (--ignore-unfixed).
       - name: Trivy Quality Gate (HIGH, CRITICAL, fixed only)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ci-lab-1:${{ env.SHORT_SHA }}
           format: table
@@ -124,7 +124,7 @@ jobs:
 
       # ЛР2, п.5.5: генерация SBOM в формате CycloneDX.
       - name: Generate SBOM (CycloneDX)
-        uses: aquasecurity/trivy-action@0.36.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           image-ref: ci-lab-1:${{ env.SHORT_SHA }}
           format: cyclonedx
