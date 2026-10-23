@@ -37,21 +37,11 @@ jobs:
       - name: Lint (flake8)
         run: python -m flake8 app tests
 
-      - name: Unit tests with coverage (Quality Gate 80%)
-        run: |
-          python -m pytest tests/test_app.py -o addopts="" \
-            --cov=app --cov-report=term --cov-report=xml --cov-fail-under=80
+      - name: Unit tests
+        run: python -m pytest tests/test_app.py -o addopts="" -q
 
       - name: Build (syntax check)
         run: python -m py_compile app/*.py
-
-      - name: Upload coverage report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
-          if-no-files-found: ignore
 
   # ---------- ЛР3: интеграционные тесты с Testcontainers ----------
   integration:
@@ -74,8 +64,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements-dev.txt
 
+      - name: Unit tests (coverage base)
+        run: python -m pytest tests/test_app.py -o addopts="" -q --cov=app --cov-report=
+
       - name: Integration tests (PostgreSQL + Redis, parallel)
-        run: python -m pytest tests/integration -o addopts="" -q -n 4
+        run: |
+          python -m pytest tests/integration -o addopts="" -q -n 4 \
+            --cov=app --cov-append --cov-report=term --cov-report=xml --cov-fail-under=80
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          if-no-files-found: ignore
 
   # ---------- ЛР2: сборка, сканирование, публикация ----------
   build-and-scan:
