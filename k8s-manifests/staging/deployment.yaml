@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ci-lab-1
+  namespace: staging
+  labels:
+    app: ci-lab-1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ci-lab-1
+  template:
+    metadata:
+      labels:
+        app: ci-lab-1
+    spec:
+      containers:
+        - name: app
+          image: ghcr.io/lumalin666/ci-lab-1-staging:initial
+          ports:
+            - containerPort: 5000
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: 5000
+            initialDelaySeconds: 3
+            periodSeconds: 5
