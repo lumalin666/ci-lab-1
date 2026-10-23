@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: ci-lab-1
+  namespace: staging
+  labels:
+    app: ci-lab-1
+spec:
+  selector:
+    app: ci-lab-1
+  ports:
+    - name: http
+      port: 80
+      targetPort: 5000
