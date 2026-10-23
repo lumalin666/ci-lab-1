@@ -76,7 +76,7 @@ def test_redis_contains_cached_payload(client, env):
 def test_create_many_items(client, index):
     for number in range(20):
         response = client.post("/items", json={"name": f"item-{index}-{number}"})
-        assert response.status_code == 201
+        assert response.status_code == 500  # EXPERIMENT: wrong expectation
 
     listed = client.get("/items")
     assert listed.get_json()["count"] == 20
