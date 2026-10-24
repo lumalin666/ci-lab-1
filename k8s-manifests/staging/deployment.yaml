@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: app
-          image: ghcr.io/lumalin666/ci-lab-1-staging:9120434
+          image: ghcr.io/lumalin666/ci-lab-1-staging:cdb2305
           ports:
             - containerPort: 5000
           readinessProbe:
